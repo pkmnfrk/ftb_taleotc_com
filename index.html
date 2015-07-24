@@ -1,0 +1,211 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Server stock</title>
+		<style>
+			#chart {
+				width: 100%;
+				height: 800px;
+			}
+			
+			#option_box {
+				display: flex;
+				flex-wrap: wrap;
+			}
+			
+			.option {
+				display:inline-block;
+				width: 250px;
+				margin: auto;
+				height: 3em;
+			}
+			
+			
+		</style>
+	</head>
+	<body>
+	
+		<div id="chart"></div>
+		<div id="option_box"></div>
+		
+		<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+		
+		<script type="text/javascript"
+          src="https://www.google.com/jsapi?autoload={
+            'modules':[{
+              'name':'visualization',
+              'version':'1',
+              'packages':['corechart']
+            }]
+          }"></script>
+		<script type="text/javascript">
+			var rawData = null;
+			var blackList = [];
+			var whiteList = ["minecraft:cobblestone:0"];
+			var allKeys = [];
+			var preppedData = null;
+			var columns = {};
+			var dates = {};
+			var minDate;
+			var maxDate;
+				
+			var googleLoaded = false;
+			
+			google.setOnLoadCallback(onGoogleLoaded);
+
+
+
+			$.ajax("http://ftb.taleotc.com/stock/data/?serverId=2", {
+			//$.ajax("data.json", {
+				dataType: "json",
+				success: function(data) {
+					rawData = data;
+					
+					if(googleLoaded) {
+						go();
+					}
+				}
+			});
+
+			function onGoogleLoaded() {
+				googleLoaded = true;
+				if(rawData != null) {
+					go();
+				}
+			}
+
+			function check() {
+				if(this.checked) {
+					whiteList.push($(this).attr("value"));
+				} else {
+					whiteList.splice(whiteList.indexOf($(this).attr("value")), 1);
+				}
+				
+				go();
+			}
+			
+			function extractKeys() {
+				if(allKeys.length) return;
+				
+				for(var mod in rawData) {
+					for(var id in rawData[mod]) {
+						for(var meta in rawData[mod][id]) {
+							var key = mod + ":" + id + ":" + meta;
+							var label = mod + " " + id + " " + meta;
+							allKeys.push(key)
+							
+							var raw = rawData[mod][id][meta];
+							
+							columns[key] = {};
+							
+							
+							for(var i = 0 ; i < raw.length; i++) {
+								if(!columns[key].minDate || columns[key].minDate > raw[i].date) {
+									columns[key].minDate = raw[i].date;
+									columns[key].minQty = raw[i].qty;
+								}
+								if(!columns[key].maxDate || columns[key].maxDate < raw[i].date) {
+									columns[key].maxDate = raw[i].date;
+									columns[key].maxQty = raw[i].qty;
+								}
+								columns[key][raw[i].date] = raw[i].qty;
+								
+								dates[raw[i].date] = true;
+								
+								if(!minDate || minDate > raw[i].date) {
+									minDate = raw[i].date;
+								}
+								if(!maxDate || maxDate < raw[i].date) {
+									maxDate = raw[i].date;
+								}
+							}
+							
+							
+							
+							var span = $("<label/>").addClass("option").attr("for", key).text(key.replace(":", " "));
+							var inp = $("<input/>").attr("type", "checkbox").attr("value", key).attr("id", key).prependTo(span);
+							inp.on('change', check);
+							if(whiteList.length == 0) {
+								whiteList.push(key);
+							}
+							
+							if(whiteList.indexOf(key) !== -1) {
+								inp.attr("checked", "checked");
+							}
+							
+							$("body").append(span);
+							
+						}
+					}
+				}
+				
+				var tmp = []
+				for(var d in dates) {
+					tmp.push(parseInt(d,10));
+				}
+				
+				tmp.sort();
+				dates = tmp;
+				
+			}
+			
+			function prepData() {
+				extractKeys();
+				preppedData = [];
+				
+				var row = [{label:"Date", id:"date", type: "datetime"}];
+				for(var i in columns) {
+					if(whiteList.indexOf(i) !== -1) {
+						row.push({label:i, id:i, type: "number"});
+					}
+				}
+				preppedData.push(row);
+				
+				for(var j = 0; j < dates.length; j++) {
+					var d = dates[j];
+					row = [];
+
+					row.push(new Date(d));
+					for(var i in columns) {
+						if(whiteList.indexOf(i) !== -1) {
+							if(d == minDate) {
+								columns[i].last = columns[i].minQty;
+								row.push(columns[i].minQty);
+							} else if(d == maxDate) {
+								columns[i].last = columns[i].maxQty;
+								row.push(columns[i].maxQty);
+							} else {
+								row.push(columns[i][d] || columns[i].last);
+								columns[i].last = columns[i][d] || columns[i].last;
+							}
+						}
+					}
+					preppedData.push(row);
+				}
+				
+			}
+			
+			function go() {
+				prepData();
+				
+				var data = google.visualization.arrayToDataTable(/*[
+				  ['Year', 'Sales', 'Expenses'],
+				  ['2004',  1000,      400],
+				  ['2005',  1170,      460],
+				  ['2006',  660,       1120],
+				  ['2007',  1030,      540]
+				]*/ preppedData);
+
+				var options = {
+				  title: 'Item Data',
+				  //curveType: 'function',
+				  legend: { position: 'bottom' }
+				};
+
+				var chart = new google.visualization.LineChart(document.getElementById('chart'));
+
+				chart.draw(data, options);
+			}
+		</script>
+	</body>
+</html>
