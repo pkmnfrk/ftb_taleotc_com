@@ -10,8 +10,8 @@
 			
 			#chart {
 				position:fixed;
-				top: 0;
-				left: 0;
+				top: 10px;
+				left: 10px;
 				width: calc(100% - 350px);
 				height: 600px;
 			}
@@ -72,8 +72,7 @@
 
 
 
-			//$.ajax("http://ftb.taleotc.com/stock/data/?serverId=2", {
-			$.ajax("data.json", {
+			$.ajax("http://ftb.taleotc.com/stock/data/?serverId=2", {
 				dataType: "json",
 				success: function(data) {
 					rawData = data;
@@ -81,9 +80,39 @@
 					if(googleLoaded) {
 						go();
 					}
+				},
+				error: function() {
+					$.ajax("data.json", {
+						dataType: "json",
+						success: function(data) {
+							rawData = data;
+							
+							if(googleLoaded) {
+								go();
+							}
+						},
+						error: function() {
+						
+						}
+					});
 				}
 			});
 
+			function prettify(label) {
+				label = label.replace(/^item\.|block\.|tile\./i, "");
+				label = label.replace(/^[A-Z]+-?([A-Z])/, "$1");
+				label = label.substring(0, 1).toUpperCase() + label.substring(1);
+				label = label.replace(/[._](\w)/g, function(match, p) {
+					return " " + p.toUpperCase()
+				});
+				
+				label = label.replace(/\s*Item$/i, "");
+				label = label.replace(/^Item\s*|Block\s*/i, "");
+				label = label.replace(/([a-z])([A-Z])/g, function(match, p1, p2) {
+					return p1 + " " + p2;
+				});
+				return label;
+			}
 			
 			function loadOptions() {
 				if(!localStorage.ftb_options) {
@@ -139,7 +168,7 @@
 					for(var id in rawData[mod]) {
 						for(var meta in rawData[mod][id]) {
 							var key = mod + ":" + id + ":" + meta;
-							var label = id;
+							var label = prettify(id);
 							if(meta != 0) label += ":" + meta;
 							
 							allKeys.push(key)
