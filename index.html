@@ -3,24 +3,36 @@
 	<head>
 		<title>Server stock</title>
 		<style>
+		
+			body {
+				
+			}
+			
 			#chart {
-				width: 100%;
-				height: 800px;
+				position:fixed;
+				top: 0;
+				left: 0;
+				width: calc(100% - 350px);
+				height: 600px;
 			}
 			
 			#option_box {
-				display: flex;
-				flex-wrap: wrap;
+				width: 300px;
+				position:absolute;
+				right: 0;
+				top: 0;
 			}
 			
 			.option {
-				display:inline-block;
-				width: 250px;
-				margin: auto;
-				height: 3em;
+				display:block;
 			}
 			
-			
+			.mod {
+				
+			}
+			.mod div {
+				display:none;
+			}
 		</style>
 	</head>
 	<body>
@@ -34,14 +46,17 @@
           src="https://www.google.com/jsapi?autoload={
             'modules':[{
               'name':'visualization',
-              'version':'1',
-              'packages':['corechart']
+              'version':'1.1',
+              'packages':['line']
             }]
           }"></script>
 		<script type="text/javascript">
+		
+		
 			var rawData = null;
 			var blackList = [];
 			var whiteList = ["minecraft:cobblestone:0"];
+			var expanded = [];
 			var allKeys = [];
 			var preppedData = null;
 			var columns = {};
@@ -51,12 +66,14 @@
 				
 			var googleLoaded = false;
 			
+			loadOptions();
+			
 			google.setOnLoadCallback(onGoogleLoaded);
 
 
 
-			$.ajax("http://ftb.taleotc.com/stock/data/?serverId=2", {
-			//$.ajax("data.json", {
+			//$.ajax("http://ftb.taleotc.com/stock/data/?serverId=2", {
+			$.ajax("data.json", {
 				dataType: "json",
 				success: function(data) {
 					rawData = data;
@@ -67,6 +84,22 @@
 				}
 			});
 
+			
+			function loadOptions() {
+				if(!localStorage.ftb_options) {
+					saveOptions();
+				}
+				
+				var obj = JSON.parse(localStorage.ftb_options);
+				whiteList = obj.whiteList || [];
+				blackList = obj.blackList || [];
+				expanded = obj.expanded || [];
+			}
+			
+			function saveOptions() {
+				localStorage.ftb_options = JSON.stringify({ blackList: blackList, whiteList: whiteList, expanded: expanded });
+			}
+			
 			function onGoogleLoaded() {
 				googleLoaded = true;
 				if(rawData != null) {
@@ -80,24 +113,42 @@
 				} else {
 					whiteList.splice(whiteList.indexOf($(this).attr("value")), 1);
 				}
-				
+				saveOptions();
 				go();
+			}
+			
+			function toggleHeader() {
+				var key = $(this).data("key");
+				if(expanded.indexOf(key) !== -1) {
+					expanded.splice(expanded.indexOf(key), 1);
+					$(this).next().hide();
+				} else {
+					expanded.push(key);
+					$(this).next().show();
+				}
+				saveOptions();
 			}
 			
 			function extractKeys() {
 				if(allKeys.length) return;
 				
+				var m = null;
+				var div = null;
+				
 				for(var mod in rawData) {
 					for(var id in rawData[mod]) {
 						for(var meta in rawData[mod][id]) {
 							var key = mod + ":" + id + ":" + meta;
-							var label = mod + " " + id + " " + meta;
+							var label = id;
+							if(meta != 0) label += ":" + meta;
+							
 							allKeys.push(key)
 							
 							var raw = rawData[mod][id][meta];
 							
 							columns[key] = {};
 							
+							columns[key].label = label;
 							
 							for(var i = 0 ; i < raw.length; i++) {
 								if(!columns[key].minDate || columns[key].minDate > raw[i].date) {
@@ -120,9 +171,20 @@
 								}
 							}
 							
+							if(m != mod) {
+								m = mod;
+								div = $("<div/>").addClass("mod");
+								div.append($("<h2/>").text(mod).on('click', toggleHeader).data("key", m));
+								var ob = $("#option_box").append(div);
+								
+								div = $("<div/>").appendTo(div);
+								
+								if(expanded.indexOf(m) !== -1) {
+									div.show();
+								}
+							}
 							
-							
-							var span = $("<label/>").addClass("option").attr("for", key).text(key.replace(":", " "));
+							var span = $("<label/>").addClass("option").attr("for", key).text(label);
 							var inp = $("<input/>").attr("type", "checkbox").attr("value", key).attr("id", key).prependTo(span);
 							inp.on('change', check);
 							if(whiteList.length == 0) {
@@ -133,7 +195,7 @@
 								inp.attr("checked", "checked");
 							}
 							
-							$("body").append(span);
+							div.append(span);
 							
 						}
 					}
@@ -156,7 +218,7 @@
 				var row = [{label:"Date", id:"date", type: "datetime"}];
 				for(var i in columns) {
 					if(whiteList.indexOf(i) !== -1) {
-						row.push({label:i, id:i, type: "number"});
+						row.push({label:i, id:i, label:columns[i].label, type: "number"});
 					}
 				}
 				preppedData.push(row);
@@ -199,12 +261,14 @@
 				var options = {
 				  title: 'Item Data',
 				  //curveType: 'function',
-				  legend: { position: 'bottom' }
+				  legend: { position: 'bottom' },
+				  explorer: {}
+				  
 				};
 
-				var chart = new google.visualization.LineChart(document.getElementById('chart'));
+				var chart = new google.charts.Line(document.getElementById('chart'));
 
-				chart.draw(data, options);
+				chart.draw(data, google.charts.Line.convertOptions(options));
 			}
 		</script>
 	</body>
